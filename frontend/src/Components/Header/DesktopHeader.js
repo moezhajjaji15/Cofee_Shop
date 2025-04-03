@@ -1,13 +1,36 @@
-import React, { useState } from "react";
-import { NavLink } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
 import MobileHeader from "./MobileHeader";
 
+// Desktop Header Component
 const DesktopHeader = () => {
   const [open, setOpen] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false); // State to manage authentication
+  const navigate = useNavigate(); // For redirection after login
+
+  // Check if the user is authenticated on component mount
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      setIsAuthenticated(true);
+    }
+  }, []);                                                                                
 
   const toggleOpen = () => setOpen(!open);
   const toggleAuthForm = () => setShowAuthForm(!showAuthForm);
+
+  const handleLoginSuccess = (token) => {
+    setIsAuthenticated(true); // Update authentication state
+    setShowAuthForm(false); // Close authentication form
+    localStorage.setItem("token", token); // Store the token in localStorage
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false); // Log the user out
+    localStorage.removeItem("token"); // Remove the token from localStorage
+    navigate("/"); // Redirect to homepage after logout
+  };
 
   return (
     <>
@@ -21,7 +44,7 @@ const DesktopHeader = () => {
           <h1>Restoran</h1>
         </NavLink>
 
-        {/* Menu pour mobile */}
+        {/* Mobile Menu */}
         <div className="lg:hidden">
           <button
             className="navbar-burger flex items-center text-orange-400"
@@ -31,59 +54,68 @@ const DesktopHeader = () => {
           </button>
         </div>
 
-        {/* Menu pour desktop */}
+        {/* Desktop Menu */}
         <ul className="hidden absolute top-1/2 left-1/2 text-orange-400 cursor-pointer text-xl font-normal font-heebo transform -translate-y-1/2 -translate-x-1/2 lg:mx-auto lg:flex lg:items-right lg:w-auto lg:space-x-6">
-          <NavLink className="mr-9" to={"/"}>
-            Home
-          </NavLink>
-          <NavLink className="mr-9" to={"/about-us"}>
-            About
-          </NavLink>
-          <NavLink className="mr-9" to={"/services"}>
-            Services
-          </NavLink>
-          <NavLink className="mr-9" to={"/menu"}>
-            Menu
-          </NavLink>
-          <NavLink className="mr-9" to={"/contact-us"}>
-            Contact
-          </NavLink>
+          <NavLink className="mr-9" to={"/"}>Home</NavLink>
+          <NavLink className="mr-9" to={"/about-us"}>About</NavLink>
+          <NavLink className="mr-9" to={"/services"}>Services</NavLink>
+          <NavLink className="mr-9" to={"/menu"}>Menu</NavLink>
+          <NavLink className="mr-9" to={"/contact-us"}>Contact</NavLink>
         </ul>
 
-        {/* Boutons de connexion et réservation */}
+        {/* Auth Buttons */}
         <div className="flex items-center space-x-4">
-          <button
-            className="inline-flex items-center bg-orange-400 border-0 py-2 px-5 focus:outline-none font-bold text-white mt-4 md:mt-0 hover:bg-white hover:text-orange-400 hover:border hover:border-orange-400"
-            onClick={toggleAuthForm}
-          >
-            Connexion
-          </button>
+          {!isAuthenticated ? (
+            <button
+              className="inline-flex items-center bg-orange-400 border-0 py-2 px-5 focus:outline-none font-bold text-white mt-4 md:mt-0 hover:bg-white hover:text-orange-400 hover:border hover:border-orange-400"
+              onClick={toggleAuthForm}
+            >
+              Connexion
+            </button>
+          ) : (
+            <button
+              className="inline-flex items-center bg-orange-400 border-0 py-2 px-5 focus:outline-none font-bold text-white mt-4 md:mt-0 hover:bg-white hover:text-orange-400 hover:border hover:border-orange-400"
+              onClick={handleLogout}
+            >
+              Déconnexion
+            </button>
+          )}
 
-          <button className="inline-flex lg:block hidden items-center bg-orange-400 border-0 py-2 px-5 focus:outline-none font-bold text-white mt-4 md:mt-0 hover:bg-white hover:text-orange-400 hover:border hover:border-orange-400">
-            Book a table
-          </button>
+          {/* Profile Button */}
+          {isAuthenticated && (
+            <NavLink
+              to="/profile"
+              className="inline-flex lg:block hidden items-center bg-orange-400 border-0 py-2 px-5 focus:outline-none font-bold text-white mt-4 md:mt-0 hover:bg-white hover:text-orange-400 hover:border hover:border-orange-400"
+            >
+              Profile
+            </NavLink>
+          )}
         </div>
       </nav>
 
-      {/* Affichage du header mobile */}
+      {/* Mobile Header */}
       {open && <MobileHeader toggleOpen={toggleOpen} />}
 
-      {/* Affichage du formulaire d'authentification */}
-      {showAuthForm && <AuthPage closeAuthForm={toggleAuthForm} />}
+      {/* Authentication Form */}
+      {showAuthForm && (
+        <AuthPage closeAuthForm={toggleAuthForm} onLoginSuccess={handleLoginSuccess} />
+      )}
     </>
   );
 };
 
-const AuthPage = ({ closeAuthForm }) => {
+// Authentication Form Component (Login / Signup)
+const AuthPage = ({ closeAuthForm, onLoginSuccess }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
-    mobile: "", // Champ mobile pour l'inscription
+    mobile: "",
     password: "",
     confirmPassword: "",
   });
+  const [error, setError] = useState("");
 
   const toggleForm = () => setIsLogin(!isLogin);
 
@@ -92,14 +124,60 @@ const AuthPage = ({ closeAuthForm }) => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+  
     if (!isLogin && formData.password !== formData.confirmPassword) {
-      alert("Passwords do not match");
+      setError("Passwords do not match");
       return;
     }
-    // Logique de soumission du formulaire
-    alert("Form submitted successfully!");
+  
+    const url = isLogin ? "http://localhost:4000/login" : "http://localhost:4000/signup";
+    const body = isLogin
+      ? { email: formData.email, password: formData.password }
+      : {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          mobile: formData.mobile,
+          password: formData.password,
+        };
+  
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+  
+      const data = await response.json();
+  
+      if (!response.ok) {
+        throw new Error(data.message || "Something went wrong");
+      }
+  
+      alert(isLogin ? "Login successful!" : "Signup successful!");
+      
+      if (isLogin) {
+        onLoginSuccess(data.token); // Pass the token to the login success handler
+      } else {
+        // After successful signup, switch to login form
+        setIsLogin(true);
+        setFormData({
+          firstName: "",
+          lastName: "",
+          email: "",
+          mobile: "",
+          password: "",
+          confirmPassword: "",
+        });
+        setError("");
+      }
+    } catch (error) {
+      setError(error.message);
+    }
   };
 
   return (
@@ -108,7 +186,7 @@ const AuthPage = ({ closeAuthForm }) => {
       style={{ zIndex: 1000 }}
     >
       <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8 relative">
-        {/* Bouton de fermeture */}
+        {/* Close Button */}
         <button
           className="absolute top-4 right-4 text-gray-500 hover:text-gray-800"
           onClick={closeAuthForm}
@@ -116,16 +194,19 @@ const AuthPage = ({ closeAuthForm }) => {
           &times;
         </button>
 
-        {/* Titre du formulaire */}
+        {/* Form Title */}
         <h1 className="font-nunito hero-text font-black text-orange-400 text-2xl lg:text-3xl mb-4 text-center">
           {isLogin ? "Login" : "Signup"} to <span className="text-orange-400">Restoran</span>
         </h1>
 
-        {/* Formulaire */}
+        {/* Error Message */}
+        {error && <div className="text-red-500 mb-4 text-center">{error}</div>}
+
+        {/* Form */}
         <form onSubmit={handleSubmit}>
           {!isLogin && (
             <>
-              {/* Prénom */}
+              {/* First Name */}
               <div className="mb-4">
                 <label className="block text-gray-700 font-bold mb-2" htmlFor="firstName">
                   First Name
@@ -141,7 +222,7 @@ const AuthPage = ({ closeAuthForm }) => {
                 />
               </div>
 
-              {/* Nom de famille */}
+              {/* Last Name */}
               <div className="mb-4">
                 <label className="block text-gray-700 font-bold mb-2" htmlFor="lastName">
                   Last Name
@@ -175,7 +256,7 @@ const AuthPage = ({ closeAuthForm }) => {
             />
           </div>
 
-          {/* Mobile (uniquement pour l'inscription) */}
+          {/* Mobile (only for signup) */}
           {!isLogin && (
             <div className="mb-4">
               <label className="block text-gray-700 font-bold mb-2" htmlFor="mobile">
@@ -193,7 +274,7 @@ const AuthPage = ({ closeAuthForm }) => {
             </div>
           )}
 
-          {/* Mot de passe */}
+          {/* Password */}
           <div className="mb-4">
             <label className="block text-gray-700 font-bold mb-2" htmlFor="password">
               Password
@@ -209,7 +290,7 @@ const AuthPage = ({ closeAuthForm }) => {
             />
           </div>
 
-          {/* Confirmation du mot de passe (uniquement pour l'inscription) */}
+          {/* Confirm Password (only for signup) */}
           {!isLogin && (
             <div className="mb-4">
               <label className="block text-gray-700 font-bold mb-2" htmlFor="confirmPassword">
@@ -227,25 +308,26 @@ const AuthPage = ({ closeAuthForm }) => {
             </div>
           )}
 
-          {/* Bouton de soumission */}
-          <button
-            type="submit"
-            className="w-full text-orange-400 font-bold shadow-lg bg-white border-2 border-orange-400 px-4 py-2 rounded-lg focus:outline-none hover:bg-orange-400 hover:text-white"
-          >
-            {isLogin ? "Login" : "Signup"}
-          </button>
+          {/* Submit Button */}
+          <div className="flex justify-center mb-4">
+            <button
+              type="submit"
+              className="w-full bg-orange-400 text-white py-2 px-4 rounded-lg hover:bg-orange-500 focus:outline-none"
+            >
+              {isLogin ? "Login" : "Signup"}
+            </button>
+          </div>
         </form>
 
-        {/* Lien pour basculer entre connexion et inscription */}
-        <p className="text-center text-gray-500 text-sm mt-4">
-          {isLogin ? "Don't have an account?" : "Already have an account?"}
-          <button
-            className="text-orange-400 font-bold ml-1"
+        {/* Toggle Form */}
+        <div className="text-center">
+          <span
             onClick={toggleForm}
+            className="text-blue-500 hover:text-blue-700 cursor-pointer"
           >
-            {isLogin ? "Signup" : "Login"}
-          </button>
-        </p>
+            {isLogin ? "Don't have an account? Signup" : "Already have an account? Login"}
+          </span>
+        </div>
       </div>
     </div>
   );

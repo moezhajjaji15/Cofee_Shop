@@ -7,7 +7,7 @@ const MyMenu = ({ description, img, title, price, onAddToCart }) => {
         <img
           alt="menu-item"
           className="w-20 h-20 bg-gray-100 object-cover object-center flex-shrink-0 rounded mr-4"
-          src={img}
+          src={img} // Utiliser la prop `img` pour afficher l'image
         />
         <div className="flex-grow">
           <strong className="float-right font-black lg:text-2xl text-orange-400">
