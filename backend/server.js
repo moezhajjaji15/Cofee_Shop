@@ -256,8 +256,10 @@ app.put("/change-password", async (req, res) => {
 
 app.post("/api/orders", (req, res) => {
   const { tableNumber, items, totalPrice } = req.body;
+  // Récupérer l'ID de l'utilisateur depuis la session si possible, sinon depuis le body
+  const userId = req.session && req.session.user ? req.session.user.id : req.body.userId;
 
-  if (!tableNumber || !items || !totalPrice) {
+  if (!tableNumber || !items || !totalPrice || !userId) {
     return res.status(400).json({ message: "Données manquantes" });
   }
 
@@ -308,8 +310,25 @@ app.post("/api/orders", (req, res) => {
           
           if (flattenedIngredients.length === 0) {
             console.warn("Aucun ingrédient à mettre à jour");
-            return db.commit(() => {
-              res.json({ message: "Commande enregistrée (aucune mise à jour de stock nécessaire)" });
+            // Mise à jour des points utilisateur même si aucun ingrédient n'est à mettre à jour
+            const pointsToAdd = Math.floor(totalPrice / 1000);
+            const updateUserPointsSql = "UPDATE users SET points = points + ? WHERE id = ?";
+            return db.query(updateUserPointsSql, [pointsToAdd, userId], (err) => {
+              if (err) {
+                return db.rollback(() => {
+                  console.error("Erreur de mise à jour des points :", err);
+                  res.status(500).json({ message: "Erreur serveur" });
+                });
+              }
+              db.commit((err) => {
+                if (err) {
+                  return db.rollback(() => {
+                    console.error("Erreur de commit :", err);
+                    res.status(500).json({ message: "Erreur serveur" });
+                  });
+                }
+                res.json({ message: "Commande enregistrée (aucune mise à jour de stock nécessaire) et points ajoutés !" });
+              });
             });
           }
 
@@ -329,14 +348,27 @@ app.post("/api/orders", (req, res) => {
 
           Promise.all(updatePromises)
             .then(() => {
-              db.commit((err) => {
+              // Mise à jour des points utilisateur
+              const pointsToAdd = Math.floor(totalPrice / 1000);
+              const updateUserPointsSql = "UPDATE users SET points = points + ? WHERE id = ?";
+              db.query(updateUserPointsSql, [pointsToAdd, userId], (err, result) => {
                 if (err) {
                   return db.rollback(() => {
-                    console.error("Erreur de commit :", err);
+                    console.error("Erreur de mise à jour des points :", err);
                     res.status(500).json({ message: "Erreur serveur" });
                   });
                 }
-                res.json({ message: "Commande enregistrée et stock mis à jour !" });
+
+                // 4. Commit de la transaction
+                db.commit((err) => {
+                  if (err) {
+                    return db.rollback(() => {
+                      console.error("Erreur de commit :", err);
+                      res.status(500).json({ message: "Erreur serveur" });
+                    });
+                  }
+                  res.json({ message: "Commande enregistrée, stock mis à jour et points ajoutés !" });
+                });
               });
             })
             .catch(err => {
@@ -355,6 +387,8 @@ app.post("/api/orders", (req, res) => {
     });
   });
 });
+
+
 
 app.get("/api/orders", (req, res) => {
   const sql = "SELECT * FROM orders";
@@ -425,9 +459,86 @@ app.post('/reservation', async (req, res) => {
   }
 });
 
+
+app.get('/api/packs', (req, res) => {
+  const query = 'SELECT * FROM pack';
+  
+  db.query(query, async (err, packs) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ error: "Erreur serveur lors de la récupération des packs." });
+    }
+
+    // Pour chaque pack, récupérer les menus associés
+    const results = await Promise.all(packs.map(async (pack) => {
+      let menuIds;
+      try {
+        menuIds = JSON.parse(pack.menu_items);
+      } catch (e) {
+        menuIds = [];
+      }
+
+      if (!Array.isArray(menuIds) || menuIds.length === 0) {
+        return { ...pack, menus: [] };
+      }
+
+      const placeholders = menuIds.map(() => '?').join(',');
+      const menuQuery = `SELECT * FROM menu WHERE id IN (${placeholders})`;
+
+      return new Promise((resolve, reject) => {
+        db.query(menuQuery, menuIds, (err, menus) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve({ ...pack, menus });
+          }
+        });
+      });
+    }));
+
+    res.json(results);
+  });
+});
+
+
+// POST: Commander un OrderPack
+app.post('/api/order-packs/order', authenticate, (req, res) => {
+  const { orderPackId } = req.body; // Renommer packId en orderPackId
+  const userId = req.user.id;
+
+  if (!orderPackId) {
+    return res.status(400).json({ error: "ID du OrderPack manquant." });
+  }
+
+  db.beginTransaction(async (err) => {
+    if (err) {
+      return res.status(500).json({ error: "Erreur de transaction." });
+    }
+
+    try {
+      // 1. Récupérer les détails du OrderPack
+      const [orderPack] = await db.promise().query('SELECT * FROM OrderPack WHERE id = ?', [orderPackId]);
+      
+      if (!orderPack.length) {
+        return res.status(404).json({ error: "OrderPack non trouvé." });
+      }
+
+      // ... (le reste de la logique reste identique mais utilise orderPack)
+    } catch (error) {
+      await db.promise().rollback();
+      console.error(error);
+      res.status(500).json({ error: "Erreur lors de la commande du OrderPack." });
+    }
+  });
+});
+
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
+
+
+
+
 
 // Démarrer le serveur
 const PORT = 4000;

@@ -13,6 +13,11 @@ const Menu = () => {
   const [searchParams] = useSearchParams();
   const tableNumber = searchParams.get("table") || "Unknown";
 
+  // Récupérer l'utilisateur connecté depuis le localStorage
+  const storedUser = localStorage.getItem("user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const userId = user ? user.id : null;
+
   useEffect(() => {
     const fetchMenuData = async () => {
       try {
@@ -21,25 +26,23 @@ const Menu = () => {
           throw new Error("Erreur lors de la récupération des données");
         }
         const data = await response.json();
-    
+
         // Mettre à jour l'URL des images pour correspondre à la nouvelle structure
         const formattedData = data.map((item) => ({
           ...item,
           price: parseFloat(item.price),
           img: `http://localhost:4000${item.img}`, // Utiliser l'URL correcte renvoyée par l'API
         }));
-    
+
         setMenuItems(formattedData);
         setFilteredItems(formattedData);
       } catch (error) {
         console.error("Erreur :", error);
       }
     };
-  
+
     fetchMenuData();
   }, []);
-  
-  
 
   // Filtrer les données en fonction de la catégorie sélectionnée
   const filterMenu = (section) => {
@@ -55,7 +58,7 @@ const Menu = () => {
   const handleAddToCart = (item) => {
     const itemWithNumericPrice = {
       ...item,
-      price: parseFloat(item.price), // Convertir en nombre
+      price: parseFloat(item.price),
     };
     setCart((prevCart) => [...prevCart, itemWithNumericPrice]);
   };
@@ -68,10 +71,16 @@ const Menu = () => {
   const calculateTotal = () =>
     cart.reduce((total, item) => total + item.price, 0).toFixed(0);
 
-  // Passer la commande
+  // Passer la commande et ajouter des points à l'utilisateur
   const handleOrder = async () => {
     if (cart.length === 0) {
       alert("Votre panier est vide !");
+      return;
+    }
+
+    // Si aucun utilisateur connecté, demander de se connecter
+    if (!userId) {
+      alert("Vous devez être connecté pour passer une commande.");
       return;
     }
 
@@ -79,6 +88,7 @@ const Menu = () => {
       tableNumber,
       items: cart,
       totalPrice: calculateTotal(),
+      userId, // Utilisation de l'ID de l'utilisateur connecté
     };
 
     try {
@@ -127,7 +137,9 @@ const Menu = () => {
                 key={section}
                 onClick={() => filterMenu(section)}
                 className={`mx-2 px-4 py-2 rounded-lg ${
-                  activeSection === section ? "bg-orange-400 text-white" : "bg-gray-200"
+                  activeSection === section
+                    ? "bg-orange-400 text-white"
+                    : "bg-gray-200"
                 }`}
               >
                 {section}
@@ -135,7 +147,10 @@ const Menu = () => {
             ))}
           </div>
           <div className="relative ml-4">
-            <button onClick={() => setShowCart(!showCart)} className="flex items-center">
+            <button
+              onClick={() => setShowCart(!showCart)}
+              className="flex items-center"
+            >
               <FaShoppingCart size={24} className="text-orange-400 mr-2" />
               <span className="text-lg font-bold">{cart.length}</span>
             </button>
@@ -146,14 +161,25 @@ const Menu = () => {
                   {cart.map((item, index) => (
                     <li key={index} className="flex justify-between items-center py-2">
                       <div className="flex items-center w-2/3">
-                        <img src={item.img} alt={item.title} className="w-12 h-12 rounded-md mr-3" />
-                        <span className="text-gray-700 font-medium truncate">{item.title}</span>
+                        <img
+                          src={item.img}
+                          alt={item.title}
+                          className="w-12 h-12 rounded-md mr-3"
+                        />
+                        <span className="text-gray-700 font-medium truncate">
+                          {item.title}
+                        </span>
                       </div>
                       <div className="flex items-center">
                         <span className="text-gray-600 font-medium mr-3 whitespace-nowrap">
-                          {typeof item.price === "number" ? item.price.toFixed(0) : "N/A"}
+                          {typeof item.price === "number"
+                            ? item.price.toFixed(0)
+                            : "N/A"}
                         </span>
-                        <button onClick={() => handleRemoveFromCart(index)} className="text-red-500 text-lg">
+                        <button
+                          onClick={() => handleRemoveFromCart(index)}
+                          className="text-red-500 text-lg"
+                        >
                           <FaTrashAlt />
                         </button>
                       </div>
@@ -164,14 +190,21 @@ const Menu = () => {
                   <>
                     <div className="flex justify-between items-center mt-4">
                       <span className="text-lg font-bold">Total :</span>
-                      <span className="text-lg font-bold">{calculateTotal()} Dinars</span>
+                      <span className="text-lg font-bold">
+                        {calculateTotal()} Dinars
+                      </span>
                     </div>
-                    <button onClick={handleOrder} className="mt-4 w-full bg-orange-400 text-white text-sm px-3 py-2 rounded-lg hover:bg-orange-500 transition-all">
+                    <button
+                      onClick={handleOrder}
+                      className="mt-4 w-full bg-orange-400 text-white text-sm px-3 py-2 rounded-lg hover:bg-orange-500 transition-all"
+                    >
                       Valider la Commande
                     </button>
                   </>
                 ) : (
-                  <p className="text-gray-500 text-sm mt-4">Votre panier est vide.</p>
+                  <p className="text-gray-500 text-sm mt-4">
+                    Votre panier est vide.
+                  </p>
                 )}
               </div>
             )}

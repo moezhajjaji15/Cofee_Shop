@@ -9,6 +9,7 @@ import Footer from "./Components/Footer/Footer";
 import AuthPage from "./Components/AuthPage/AuthPage";
 import Profile from "./Components/Pages/ProfilePage"; // Importer la page Profile
 import Orders from "./Components/Pages/Orders"; // Importer la page Orders
+import Pack from "./Components/Pages/PackPage"; // Assure-toi que le chemin est correct
 
 const App = () => {
   return (
@@ -23,6 +24,8 @@ const App = () => {
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/profile" element={<Profile />} /> {/* Ajouter la route pour la page Profile */}
           <Route path="/orders" element={<Orders />} /> {/* Ajouter la route pour la page Orders */}
+          <Route path="/pack" element={<Pack />} />
+
         </Routes>
         <Footer />
       </BrowserRouter>

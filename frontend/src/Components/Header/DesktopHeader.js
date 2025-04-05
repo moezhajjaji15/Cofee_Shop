@@ -2,34 +2,40 @@ import React, { useState, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import MobileHeader from "./MobileHeader";
 
-// Desktop Header Component
 const DesktopHeader = () => {
   const [open, setOpen] = useState(false);
   const [showAuthForm, setShowAuthForm] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false); // State to manage authentication
-  const navigate = useNavigate(); // For redirection after login
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null); // Ajout pour stocker les infos utilisateur
+  const navigate = useNavigate();
 
-  // Check if the user is authenticated on component mount
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (token) {
+    const userData = localStorage.getItem("user");
+    
+    if (token && userData) {
       setIsAuthenticated(true);
+      setUser(JSON.parse(userData));
     }
-  }, []);                                                                                
+  }, []);
 
   const toggleOpen = () => setOpen(!open);
   const toggleAuthForm = () => setShowAuthForm(!showAuthForm);
 
-  const handleLoginSuccess = (token) => {
-    setIsAuthenticated(true); // Update authentication state
-    setShowAuthForm(false); // Close authentication form
-    localStorage.setItem("token", token); // Store the token in localStorage
+  const handleLoginSuccess = (token, userData) => {
+    setIsAuthenticated(true);
+    setUser(userData);
+    setShowAuthForm(false);
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(userData));
   };
 
   const handleLogout = () => {
-    setIsAuthenticated(false); // Log the user out
-    localStorage.removeItem("token"); // Remove the token from localStorage
-    navigate("/"); // Redirect to homepage after logout
+    setIsAuthenticated(false);
+    setUser(null);
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/");
   };
 
   return (
@@ -60,6 +66,12 @@ const DesktopHeader = () => {
           <NavLink className="mr-9" to={"/about-us"}>About</NavLink>
           <NavLink className="mr-9" to={"/services"}>Services</NavLink>
           <NavLink className="mr-9" to={"/menu"}>Menu</NavLink>
+          
+          {/* Lien Pack conditionnel */}
+          {isAuthenticated && (
+            <NavLink className="mr-9" to={"/pack"}>Pack</NavLink>
+          )}
+          
           <NavLink className="mr-9" to={"/contact-us"}>Contact</NavLink>
         </ul>
 
@@ -73,28 +85,28 @@ const DesktopHeader = () => {
               Connexion
             </button>
           ) : (
-            <button
-              className="inline-flex items-center bg-orange-400 border-0 py-2 px-5 focus:outline-none font-bold text-white mt-4 md:mt-0 hover:bg-white hover:text-orange-400 hover:border hover:border-orange-400"
-              onClick={handleLogout}
-            >
-              Déconnexion
-            </button>
-          )}
-
-          {/* Profile Button */}
-          {isAuthenticated && (
-            <NavLink
-              to="/profile"
-              className="inline-flex lg:block hidden items-center bg-orange-400 border-0 py-2 px-5 focus:outline-none font-bold text-white mt-4 md:mt-0 hover:bg-white hover:text-orange-400 hover:border hover:border-orange-400"
-            >
-              Profile
-            </NavLink>
+            <>
+              <button
+                className="inline-flex items-center bg-orange-400 border-0 py-2 px-5 focus:outline-none font-bold text-white mt-4 md:mt-0 hover:bg-white hover:text-orange-400 hover:border hover:border-orange-400"
+                onClick={handleLogout}
+              >
+                Déconnexion
+              </button>
+              
+              {/* Bouton Profile */}
+              <NavLink
+                to="/profile"
+                className="inline-flex lg:block hidden items-center bg-orange-400 border-0 py-2 px-5 focus:outline-none font-bold text-white mt-4 md:mt-0 hover:bg-white hover:text-orange-400 hover:border hover:border-orange-400"
+              >
+                Profile
+              </NavLink>
+            </>
           )}
         </div>
       </nav>
 
       {/* Mobile Header */}
-      {open && <MobileHeader toggleOpen={toggleOpen} />}
+      {open && <MobileHeader toggleOpen={toggleOpen} isAuthenticated={isAuthenticated} />}
 
       {/* Authentication Form */}
       {showAuthForm && (
@@ -104,7 +116,6 @@ const DesktopHeader = () => {
   );
 };
 
-// Authentication Form Component (Login / Signup)
 const AuthPage = ({ closeAuthForm, onLoginSuccess }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
@@ -158,20 +169,18 @@ const AuthPage = ({ closeAuthForm, onLoginSuccess }) => {
         throw new Error(data.message || "Something went wrong");
       }
   
-      alert(isLogin ? "Login successful!" : "Signup successful!");
-      
       if (isLogin) {
-        onLoginSuccess(data.token); // Pass the token to the login success handler
+        alert("Login successful!");
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        onLoginSuccess(data.token, data.user);
       } else {
-        // After successful signup, switch to login form
+        alert("Signup successful! Please login.");
         setIsLogin(true);
         setFormData({
-          firstName: "",
-          lastName: "",
-          email: "",
-          mobile: "",
+          ...formData,
           password: "",
-          confirmPassword: "",
+          confirmPassword: ""
         });
         setError("");
       }
@@ -186,7 +195,6 @@ const AuthPage = ({ closeAuthForm, onLoginSuccess }) => {
       style={{ zIndex: 1000 }}
     >
       <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8 relative">
-        {/* Close Button */}
         <button
           className="absolute top-4 right-4 text-gray-500 hover:text-gray-800"
           onClick={closeAuthForm}
@@ -194,19 +202,15 @@ const AuthPage = ({ closeAuthForm, onLoginSuccess }) => {
           &times;
         </button>
 
-        {/* Form Title */}
         <h1 className="font-nunito hero-text font-black text-orange-400 text-2xl lg:text-3xl mb-4 text-center">
           {isLogin ? "Login" : "Signup"} to <span className="text-orange-400">Restoran</span>
         </h1>
 
-        {/* Error Message */}
         {error && <div className="text-red-500 mb-4 text-center">{error}</div>}
 
-        {/* Form */}
         <form onSubmit={handleSubmit}>
           {!isLogin && (
             <>
-              {/* First Name */}
               <div className="mb-4">
                 <label className="block text-gray-700 font-bold mb-2" htmlFor="firstName">
                   First Name
@@ -219,10 +223,10 @@ const AuthPage = ({ closeAuthForm, onLoginSuccess }) => {
                   placeholder="Enter your first name"
                   value={formData.firstName}
                   onChange={handleChange}
+                  required
                 />
               </div>
 
-              {/* Last Name */}
               <div className="mb-4">
                 <label className="block text-gray-700 font-bold mb-2" htmlFor="lastName">
                   Last Name
@@ -235,12 +239,12 @@ const AuthPage = ({ closeAuthForm, onLoginSuccess }) => {
                   placeholder="Enter your last name"
                   value={formData.lastName}
                   onChange={handleChange}
+                  required
                 />
               </div>
             </>
           )}
 
-          {/* Email */}
           <div className="mb-4">
             <label className="block text-gray-700 font-bold mb-2" htmlFor="email">
               Email
@@ -253,10 +257,10 @@ const AuthPage = ({ closeAuthForm, onLoginSuccess }) => {
               placeholder="Enter your email"
               value={formData.email}
               onChange={handleChange}
+              required
             />
           </div>
 
-          {/* Mobile (only for signup) */}
           {!isLogin && (
             <div className="mb-4">
               <label className="block text-gray-700 font-bold mb-2" htmlFor="mobile">
@@ -270,11 +274,11 @@ const AuthPage = ({ closeAuthForm, onLoginSuccess }) => {
                 placeholder="Enter your mobile number"
                 value={formData.mobile}
                 onChange={handleChange}
+                required
               />
             </div>
           )}
 
-          {/* Password */}
           <div className="mb-4">
             <label className="block text-gray-700 font-bold mb-2" htmlFor="password">
               Password
@@ -287,10 +291,11 @@ const AuthPage = ({ closeAuthForm, onLoginSuccess }) => {
               placeholder="Enter your password"
               value={formData.password}
               onChange={handleChange}
+              required
+              minLength="0"
             />
           </div>
 
-          {/* Confirm Password (only for signup) */}
           {!isLogin && (
             <div className="mb-4">
               <label className="block text-gray-700 font-bold mb-2" htmlFor="confirmPassword">
@@ -304,11 +309,12 @@ const AuthPage = ({ closeAuthForm, onLoginSuccess }) => {
                 placeholder="Confirm your password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
+                required
+                minLength="6"
               />
             </div>
           )}
 
-          {/* Submit Button */}
           <div className="flex justify-center mb-4">
             <button
               type="submit"
@@ -319,7 +325,6 @@ const AuthPage = ({ closeAuthForm, onLoginSuccess }) => {
           </div>
         </form>
 
-        {/* Toggle Form */}
         <div className="text-center">
           <span
             onClick={toggleForm}
